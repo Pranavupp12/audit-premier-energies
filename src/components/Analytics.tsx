@@ -107,7 +107,11 @@ export const Analytics: React.FC<AnalyticsProps> = ({
   }));
 
   const cxoData = Array.from(
-    new Set(auditIssues.map((i) => i.cxoResponsible))
+    new Set(
+      auditIssues
+        .map((i) => i.cxoResponsible)
+        .filter((val): val is string => typeof val === "string" && val.length > 0)
+    )
   ).map((cxo) => ({
     name: cxo.split("@")[0],
     received: auditIssues.filter(
@@ -117,6 +121,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({
       (i) => i.cxoResponsible === cxo && i.currentStatus !== "Received"
     ).length,
   }));
+
 
   const fiscalYearData = Array.from(
     new Set(auditIssues.map((i) => i.fiscalYear))
@@ -151,8 +156,8 @@ export const Analytics: React.FC<AnalyticsProps> = ({
         type === "next3"
           ? "next-3-months-report.xlsx"
           : type === "next6"
-          ? "next-6-months-report.xlsx"
-          : "overdue-report.xlsx";
+            ? "next-6-months-report.xlsx"
+            : "overdue-report.xlsx";
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
@@ -398,36 +403,36 @@ export const Analytics: React.FC<AnalyticsProps> = ({
           </CardContent>
         </Card>
         {/* ─── New Reports Section ─────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Reports</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span>Next 3 Months</span>
-              <Button onClick={() => downloadReport('next3')}>
-                Download Excel
-              </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle>Reports</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span>Next 3 Months</span>
+                <Button onClick={() => downloadReport('next3')}>
+                  Download Excel
+                </Button>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Next 6 Months</span>
+                <Button onClick={() => downloadReport('next6')}>
+                  Download Excel
+                </Button>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Overdue</span>
+                <Button onClick={() => downloadReport('overdue')}>
+                  Download Excel
+                </Button>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span>Next 6 Months</span>
-              <Button onClick={() => downloadReport('next6')}>
-                Download Excel
-              </Button>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Overdue</span>
-              <Button onClick={() => downloadReport('overdue')}>
-                Download Excel
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
       </div>
 
-      
+
     </div>
   );
 };
