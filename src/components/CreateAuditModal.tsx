@@ -55,8 +55,8 @@ export const CreateAuditModal: React.FC<CreateAuditModalProps> = ({ open, onClos
     byEntityResponsibles: {} as Record<string, string>,
     approver: [''],
     cxoResponsible: [''],
-    cxoCoOwner: [] as string[],
-    showCxoCoOwner: false,
+    coOwner: [] as string[],
+    showCoOwner: false,
     currentStatus: 'To Be Received' as typeof STATUSES[number],
     riskAnnexureText: '',
     riskAnnexureFile: null as File | null,
@@ -107,8 +107,8 @@ export const CreateAuditModal: React.FC<CreateAuditModalProps> = ({ open, onClos
 
         formData.approver.forEach(a => payload.append('approver', a));
         formData.cxoResponsible.forEach(c => payload.append('cxoResponsible', c));
-        formData.cxoCoOwner.forEach((coOwnerEmail) => {
-          payload.append('cxoCoOwner[]', coOwnerEmail);
+        formData.coOwner.forEach((coOwnerEmail) => {
+          payload.append('coOwner[]', coOwnerEmail);
         });
 
         if (timeline) payload.append('timeline', timeline.toISOString().split('T')[0])
@@ -142,7 +142,7 @@ export const CreateAuditModal: React.FC<CreateAuditModalProps> = ({ open, onClos
         approver: [''], cxoResponsible: [''],
         currentStatus: 'Partially Received', riskAnnexureText: '',
         riskAnnexureFile: null, actionRequired: '', coverageStartMonth: '',
-        coverageEndMonth: '', cxoCoOwner: [] as string[], showCxoCoOwner: false
+        coverageEndMonth: '', coOwner: [] as string[], showCoOwner: false
       })
       setTimeline(undefined)
       setSamePerson(true)
@@ -249,71 +249,71 @@ export const CreateAuditModal: React.FC<CreateAuditModalProps> = ({ open, onClos
             <Label>Same person responsible for all entities?</Label>
           </div>
 
-        {samePerson ? (
-  <div className="space-y-2">
-    <div className="flex items-center justify-between">
-      <Label>Person Responsible(s) (Email) *</Label>
-      <button
-        type="button"
-        onClick={() =>
-          setFormData(fd => ({ ...fd, personResponsible: [...fd.personResponsible, ''] }))
-        }
-        className="text-blue-500 text-sm hover:underline"
-      >
-        + Add
-      </button>
-    </div>
-    {formData.personResponsible.map((email, index) => (
-      <div key={index} className="flex items-center gap-2 mt-1">
-        <Input
-          type="email"
-          value={email}
-          required
-          onChange={e => {
-            const newList = [...formData.personResponsible];
-            newList[index] = e.target.value;
-            setFormData(fd => ({ ...fd, personResponsible: newList }));
-          }}
-          placeholder="person@example.com"
-        />
-        {index > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              const newList = formData.personResponsible.filter((_, i) => i !== index);
-              setFormData(fd => ({ ...fd, personResponsible: newList }));
-            }}
-            className="text-red-500 hover:underline"
-          >
-            Remove
-          </button>
-        )}
-      </div>
-    ))}
-  </div>
-) : (
-  formData.entities.map(ent => (
-    <div key={ent} className="space-y-2">
-      <Label>Person Responsible for {ent} *</Label>
-      <Input
-        type="email"
-        value={formData.byEntityResponsibles[ent] || ''}
-        onChange={e => {
-          const val = e.target.value;
-          setFormData(fd => ({
-            ...fd,
-            byEntityResponsibles: {
-              ...fd.byEntityResponsibles,
-              [ent]: val,
-            },
-          }));
-        }}
-        placeholder="person@example.com"
-        required
-      />
-    </div>
-  ))
-)}
+          {samePerson ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Person Responsible(s) (Email) *</Label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData(fd => ({ ...fd, personResponsible: [...fd.personResponsible, ''] }))
+                  }
+                  className="text-blue-500 text-sm hover:underline"
+                >
+                  + Add
+                </button>
+              </div>
+              {formData.personResponsible.map((email, index) => (
+                <div key={index} className="flex items-center gap-2 mt-1">
+                  <Input
+                    type="email"
+                    value={email}
+                    required
+                    onChange={e => {
+                      const newList = [...formData.personResponsible];
+                      newList[index] = e.target.value;
+                      setFormData(fd => ({ ...fd, personResponsible: newList }));
+                    }}
+                    placeholder="person@example.com"
+                  />
+                  {index > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newList = formData.personResponsible.filter((_, i) => i !== index);
+                        setFormData(fd => ({ ...fd, personResponsible: newList }));
+                      }}
+                      className="text-red-500 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            formData.entities.map(ent => (
+              <div key={ent} className="space-y-2">
+                <Label>Person Responsible for {ent} *</Label>
+                <Input
+                  type="email"
+                  value={formData.byEntityResponsibles[ent] || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData(fd => ({
+                      ...fd,
+                      byEntityResponsibles: {
+                        ...fd.byEntityResponsibles,
+                        [ent]: val,
+                      },
+                    }));
+                  }}
+                  placeholder="person@example.com"
+                  required
+                />
+              </div>
+            ))
+          )}
 
 
           {/* Approver & CXO */}
@@ -385,8 +385,8 @@ export const CreateAuditModal: React.FC<CreateAuditModalProps> = ({ open, onClos
                     type="button"
                     onClick={() =>
                       setFormData(fd => ({
-                        ...fd, showCxoCoOwner: true,
-                        cxoCoOwner: fd.cxoCoOwner.length === 0 ? [''] : fd.cxoCoOwner
+                        ...fd, showCoOwner: true,
+                        coOwner: fd.coOwner.length === 0 ? [''] : fd.coOwner
                       }))
                     }
                     className="text-blue-500 text-sm hover:underline"
@@ -425,30 +425,30 @@ export const CreateAuditModal: React.FC<CreateAuditModalProps> = ({ open, onClos
               ))}
 
               {/* CXO Co-owner section */}
-              {formData.showCxoCoOwner && formData.cxoCoOwner.length > 0 && (
+              {formData.showCoOwner && formData.coOwner.length > 0 && (
                 <div className="mt-4">
                   <Label>Co-owner(s) (Email)</Label>
 
-                  {formData.cxoCoOwner.map((email, index) => (
+                  {formData.coOwner.map((email, index) => (
                     <div key={index} className="flex items-center gap-2 mt-1">
                       <Input
                         type="email"
                         value={email}
                         onChange={(e) => {
-                          const updated = [...formData.cxoCoOwner];
+                          const updated = [...formData.coOwner];
                           updated[index] = e.target.value;
-                          setFormData(fd => ({ ...fd, cxoCoOwner: updated }));
+                          setFormData(fd => ({ ...fd, coOwner: updated }));
                         }}
                         placeholder="person@example.com"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          const updated = formData.cxoCoOwner.filter((_, i) => i !== index);
+                          const updated = formData.coOwner.filter((_, i) => i !== index);
                           setFormData(fd => ({
                             ...fd,
-                            cxoCoOwner: updated,
-                            showCxoCoOwner: updated.length > 0 // hide if empty
+                            coOwner: updated,
+                            showCoOwner: updated.length > 0 // hide if empty
                           }));
                         }}
                         className="text-red-500 hover:underline"
@@ -463,7 +463,7 @@ export const CreateAuditModal: React.FC<CreateAuditModalProps> = ({ open, onClos
                     onClick={() =>
                       setFormData(fd => ({
                         ...fd,
-                        cxoCoOwner: [...fd.cxoCoOwner, '']
+                        coOwner: [...fd.coOwner, '']
                       }))
                     }
                     className="text-blue-500 text-sm mt-2 hover:underline"

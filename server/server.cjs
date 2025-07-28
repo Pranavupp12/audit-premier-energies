@@ -185,148 +185,104 @@ function normalizeMultiEmailField(val) {
   }
 }
 
-// POST /api/audit-issues → insert & send emails/mysql
-app.post(
-  "/api/audit-issues/upload",
-  upload.single("file"),
-  async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+// POST /api/audit-issues → create audit issue
+app.post("/api/audit-issues", upload.single("annexure"), async (req, res) => {
+  try {
+    // Normalize multi-email fields
+    req.body.personResponsible = normalizeMultiEmailField(req.body.personResponsible );
+    req.body.approver = normalizeMultiEmailField(req.body.approver);
+    req.body.cxoResponsible = normalizeMultiEmailField(req.body.cxoResponsible);
+    req.body.coOwner = normalizeMultiEmailField(req.body.coOwner);
+
+    // Map/standardize months
+    const startMonth = req.body.startMonth || req.body.coverageStartMonth || "";
+    const endMonth = req.body.endMonth || req.body.coverageEndMonth || "";
+
+    // Extract all fields (handle both multipart and JSON/text inputs)
+    const {
+      fiscalYear,
+      date,
+      process,
+      entityCovered,
+      observation,
+      riskLevel,
+      recommendation,
+      managementComment,
+      personResponsible,
+      approver,
+      cxoResponsible,
+      coOwner,
+      timeline,
+      currentStatus,
+      reviewComments, 
+      risk,
+      actionRequired,
+    } = req.body;
+
+    // Validate required fields?
+    if (
+      !fiscalYear ||
+      !date ||
+      !process ||
+      !entityCovered ||
+      !observation ||
+      !riskLevel ||
+      !recommendation ||
+      !personResponsible ||
+      !approver ||
+      !cxoResponsible
+    ) {
+      return res.status(400).json({ error: "Missing required fields!" });
     }
 
-    try {
-      const ext = path.extname(req.file.originalname).toLowerCase();
-      let workbook;
-      if (ext === ".csv") {
-        const text = req.file.buffer.toString("utf8");
-        workbook = XLSX.read(text, { type: "string" });
-      } else {
-        workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-      }
+    // Save the uploaded file path or filename if needed
+    const annexure = req.file ? req.file.filename : "";
 
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-
-      if (rows.length < 2) {
-        return res.status(400).json({
-          error: "File must have header and at least one row",
-        });
-      }
-
-      const dataRows = rows.slice(1);
-      let successCount = 0;
-      let errorCount = 0;
-
-      const connection = await pool.getConnection();
-
-      const insertQuery = `
+    const id = uuidv4();
+    const insertQuery = `
   INSERT INTO AuditIssues (
     id, fiscalYear, date, process, entityCovered, observation, riskLevel,
     recommendation, managementComment, personResponsible, approver,
-    cxoResponsible, coOwner, timeline, currentStatus, evidenceReceived,
-    reviewComments, risk, actionRequired, startMonth, endMonth, annexure
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    cxoResponsible, coOwner, timeline, currentStatus,reviewComments, risk, actionRequired,
+    startMonth, endMonth, annexure
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
-      console.log("fiscalYear raw:", JSON.stringify(rows["fiscalYear"]));
+    const values = [
+      id,
+      fiscalYear || "",
+      date || new Date(),
+      process || "",
+      entityCovered || "",
+      observation || "",
+      riskLevel || "",
+      recommendation || "",
+      managementComment || "",
+      personResponsible || "",
+      approver || "",
+      cxoResponsible || "",
+      coOwner || "",
+      timeline || null,
+      currentStatus || "",
+      reviewComments || "",    
+      risk || "",
+      actionRequired || "",
+      startMonth,
+      endMonth,
+      annexure || "",
+    ];
 
-      for (const row of dataRows) {
-        if (!row.some((cell) => cell.trim?.())) continue;
-
-        try {
-          const [
-            ,
-            // skip serial
-            fiscalYear,
-            process,
-            entityCovered,
-            observation,
-            riskLevel,
-            recommendation,
-            managementComment,
-            personResponsibleRaw, // note 'Raw'
-            approverRaw,
-            cxoResponsibleRaw,
-            coOwnerRaw,
-            timeline,
-            currentStatus,
-            startMonth,
-            endMonth,
-            reviewComments,
-            risk,
-            actionRequired,
-            annexure,
-          ] = row;
-
-          const personResponsible =
-            normalizeMultiEmailField(personResponsibleRaw);
-          const approver = normalizeMultiEmailField(approverRaw);
-          const cxoResponsible = normalizeMultiEmailField(cxoResponsibleRaw);
-          const coOwner = normalizeMultiEmailField(coOwnerRaw);
-
-          const mapRiskLevel = (r) => {
-            const rl = (r || "").toLowerCase();
-            if (rl === "high") return "high";
-            if (rl === "low") return "low";
-            return "medium";
-          };
-
-          const mapStatus = (s) => {
-            if (Array.isArray(s)) s = s[0] ?? "";
-            if (typeof s !== "string") s = String(s ?? "");
-
-            const status = s.trim().toLowerCase();
-
-            if (status.includes("partially")) return "Partially Received";
-            if (status.includes("received")) return "Received";
-            return "To Be Received";
-          };
-
-          const id = uuidv4();
-
-          const values = [
-            id,
-            fiscalYear || "",
-            new Date(),
-            process || "",
-            entityCovered || "",
-            observation || "",
-            mapRiskLevel(riskLevel),
-            recommendation || "",
-            managementComment || "",
-            personResponsible || "",
-            approver || "",
-            cxoResponsible || "",
-            coOwner || "",
-            timeline ? new Date(timeline) : null,
-            mapStatus(currentStatus),
-            JSON.stringify([]),
-            reviewComments || "",
-            risk || "",
-            actionRequired || "",
-            startMonth || "",
-            endMonth || "",
-            annexure || "",
-          ];
-
-          await connection.execute(insertQuery, values);
-          successCount++;
-        } catch (err) {
-          console.error("Row insert error:", err);
-          errorCount++;
-        }
-      }
-
-      res.status(200).json({
-        message: `Imported ${successCount} rows${
-          errorCount ? `, ${errorCount} failed` : ""
-        }.`,
-      });
-    } catch (err) {
-      console.error("Upload error:", err);
-      res.status(500).json({ error: "Failed to process upload" });
-    }
+    const connection = await pool.getConnection();
+    console.log("--- AuditIssues Insert Debug ---");
+    console.log("VALUES:", values);
+    console.log("LENGTH:", values.length);
+    await connection.execute(insertQuery, values);
+    res.status(200).json({ message: "Audit issue created" });
+  } catch (err) {
+    console.error("Single audit issue creation error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
-);
+});
 
 // GET /api/audit-issues → fetch all (latest first)/mysql
 app.get("/api/audit-issues", async (req, res) => {
@@ -758,15 +714,15 @@ app.put("/api/audit-issues/:id/review", async (req, res) => {
 
     // 3. Send email notifications
     const link = `<a href="https://audit.premierenergies.com">audit.premierenergies.com</a>`;
-
+    // If Accepted
     if (evidenceStatus === "Accepted") {
       await Promise.all([
-        sendEmail(
+        sendToMany(
           personResponsible,
           `Proof Accepted for ${caption}`,
           `The proof you have uploaded for ${caption} has been accepted by the auditor. Please review here: ${link}`
         ),
-        sendEmail(
+        sendToMany(
           cxoResponsible,
           `Proof Accepted for ${caption}`,
           `The proof uploaded for ${caption} by ${personResponsible} has been accepted by the auditor. Please review here: ${link}`
@@ -774,12 +730,12 @@ app.put("/api/audit-issues/:id/review", async (req, res) => {
       ]);
     } else if (evidenceStatus === "Partially Accepted") {
       await Promise.all([
-        sendEmail(
+        sendToMany(
           personResponsible,
           `Proof Partially Accepted for ${caption}`,
           `The proof you uploaded for ${caption} has been partially accepted by the auditor. Please review here: ${link}`
         ),
-        sendEmail(
+        sendToMany(
           cxoResponsible,
           `Proof Partially Accepted for ${caption}`,
           `The proof uploaded for ${caption} by ${personResponsible} has been partially accepted by the auditor. Please review here: ${link}`
@@ -787,12 +743,12 @@ app.put("/api/audit-issues/:id/review", async (req, res) => {
       ]);
     } else {
       await Promise.all([
-        sendEmail(
+        sendToMany(
           personResponsible,
           `Proof Marked as Not Sufficient for ${caption}`,
           `The proof you have uploaded for ${caption} has been marked as insufficient by the auditor. Please review here: ${link}`
         ),
-        sendEmail(
+        sendToMany(
           cxoResponsible,
           `Proof Marked as Not Sufficient for ${caption}`,
           `The proof uploaded for ${caption} by ${personResponsible} has been marked as insufficient by the auditor. Please review here: ${link}`
@@ -855,10 +811,8 @@ app.get("/api/audit-issues/reports/:reportType", async (req, res) => {
       .status(400)
       .json({ error: "Invalid reportType. Use next3, next6 or overdue." });
   }
-
   try {
     const connection = await pool.getConnection();
-
     const dateParam = today.toISOString().split("T")[0];
 
     const [rows] =
@@ -866,9 +820,29 @@ app.get("/api/audit-issues/reports/:reportType", async (req, res) => {
         ? await connection.execute(query, [dateParam])
         : await connection.execute(query, [dateParam, dateParam]);
 
+    // Helper to display emails nicely in Excel cell
+    function emailsToExcelCell(val) {
+      if (!val) return "";
+      if (Array.isArray(val)) return val.join("\n");
+      return String(val)
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    // Map rows: each email on newline for Excel output
+    const displayRows = rows.map((r) => ({
+      ...r,
+      personResponsible: emailsToExcelCell(r.personResponsible),
+      approver: emailsToExcelCell(r.approver),
+      cxoResponsible: emailsToExcelCell(r.cxoResponsible),
+      coOwner: emailsToExcelCell(r.coOwner),
+    }));
+
     // Generate Excel workbook
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows);
+    const ws = XLSX.utils.json_to_sheet(displayRows);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -884,21 +858,6 @@ app.get("/api/audit-issues/reports/:reportType", async (req, res) => {
   } catch (err) {
     console.error("⛔ Report generation error:", err);
     res.status(500).json({ error: "Failed to generate report" });
-  }
-});
-
-// POST /api/audit-issues/:id/close
-app.post("/:id/close", async (req, res) => {
-  const { id } = req.params;
-  try {
-    await db.query("UPDATE AuditIssues SET currentStatus = ? WHERE id = ?", [
-      "Closed",
-      id,
-    ]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to close audit issue" });
   }
 });
 
